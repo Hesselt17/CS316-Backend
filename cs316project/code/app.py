@@ -129,7 +129,25 @@ def get_single_room(designid):
 """ DIY APIS"""
 @app.route('/diy', methods=['GET', 'POST'])
 def get_diy():
-    pass
+    if request.method == 'GET':
+        diys = select([Diy, Design]).where(Diy.columns.designid == Design.columns.designid)
+        query = connection.execute(diys)
+        result = query.fetchall()
+        return jsonify({'result': [dict(row) for row in result]})
+
+    if request.method == 'POST':
+        data = request.get_json()
+        design_id = int(uuid.uuid4())
+
+        # create design id and add to Design relation
+        query1 = insert(Design).values(designid=design_id, style=data['style'], caption=data['caption'],
+                                       dateposted=data['dateposted'])
+        connection.execute(query1)
+
+        # create new room, add to Room and give design ID
+        query2 = insert(Diy).values(designid=design_id, score=data['score'], timetakes=data['timetakes'], link=data['link'], materials=data['materials'], title=data['title'], instructions=data['instructions'])
+        connection.execute(query2)
+        return {'message': 'New DIY has been added.'}
 
 
 @app.route('/diy/designid', methods=['GET', 'PUT', 'DELETE'])
@@ -138,9 +156,29 @@ def get_single_diy():
 
 
 """ FAVORITES APIS"""
+@app.route('/favorites', methods=['GET', 'PUT', 'DELETE'])
+def get_favorites():
+    pass
+
+
+@app.route('/favorites/userid', methods=['GET', 'PUT', 'DELETE'])
+def get_single_favorite():
+    pass
 
 
 """ REVIEWS APIS"""
+@app.route('/reviews', methods=['GET'])
+def get_reviews():
+    if request.method == 'GET':
+        reviews = select([Reviews])  # do we ever need the entire list of reviews?
+        query = connection.execute(reviews)
+        result = query.fetchall()
+        return jsonify({'result': [dict(row) for row in result]})
+
+
+@app.route('/reviews/designid', methods=['GET', 'PUT', 'DELETE'])
+def get_single_review():
+    pass
 
 
 if __name__ == '__main__':
