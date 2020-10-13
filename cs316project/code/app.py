@@ -4,6 +4,8 @@ import uuid
 
 from sqlalchemy import *
 
+from flask_cors import CORS
+
 # these are for authentication, not sure if will still be using:
 # from flask_jwt import JWT, jwt_required
 # from .security import authenticate, identity
@@ -16,6 +18,7 @@ metadata = MetaData()
 
 # Init app
 app = Flask(__name__)
+cors = CORS(app)  #This is what allows for this backend to enable CORS (webbrowser blocking loading data)
 app.secret_key = 'julia' # what is this used for?
 # api = Api(app)
 
