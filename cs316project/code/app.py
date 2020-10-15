@@ -1,9 +1,6 @@
 from flask import Flask, request, jsonify
-# from flask_restful import Resource, Api # only needed if doing class-based routing
-import uuid
-
+import random
 from sqlalchemy import *
-
 from flask_cors import CORS
 
 
@@ -22,6 +19,7 @@ app.secret_key = 'julia'  # what is this used for?
 # loading relations
 UserInfo = Table('userinfo', metadata, autoload=True, autoload_with=engine)
 Design = Table('design', metadata, autoload=True, autoload_with=engine)
+Create = Table('creates', metadata, autoload=True, autoload_with=engine)
 Room = Table('room', metadata, autoload=True, autoload_with=engine)
 Diy = Table('diy', metadata, autoload=True, autoload_with=engine)
 Favorites = Table('favorites', metadata, autoload=True, autoload_with=engine)
@@ -41,7 +39,7 @@ def get_users():
     # adds new user to UserInfo. Assign userid to user
     if request.method == 'POST':
         data = request.get_json()
-        unique_id = int(uuid.uuid4())  # made this an int (default is class uuid.UUID)
+        unique_id = random.randrange(20000, 100000)  # made this an int (default is class uuid.UUID)
         new_user = insert(UserInfo).values(uid=unique_id, name=data['name'], password=data['password'], email=data['email'],
                                            bio=data['bio'], score=data['score'], wherelive=data['wherelive'])
         connection.execute(new_user)
@@ -83,16 +81,19 @@ def get_rooms():
         return jsonify({'result': [dict(row) for row in result]})
 
     if request.method == 'POST':
-        data = request.get_json()
-        design_id = int(uuid.uuid4())
+        data = request.get_json() # needs to include the uid
+        design_id = random.randrange(100001, 300000)
 
         # create design id and add to Design relation
         query1 = insert(Design).values(designid=design_id, style=data['style'], caption=data['caption'], dateposted=data['dateposted'])
         connection.execute(query1)
 
-        # create new room, add to Room and give design ID
-        query2 = insert(Room).values(designid=design_id, occupancy=data['occupancy'], building=data['building'])
+        query2 = insert(Create).values(designid=design_id, uid=data['uid'])
         connection.execute(query2)
+
+        # create new room, add to Room and give design ID
+        query3 = insert(Room).values(designid=design_id, occupancy=data['occupancy'], building=data['building'])
+        connection.execute(query3)
         return {'message': 'New room has been added.'}
 
 
@@ -120,15 +121,18 @@ def get_single_room(designid):
         query1 = delete(Design).where(Design.columns.designid == designid)
         connection.execute(query1)
 
-        query2 = delete(Room).where(Room.columns.designid == designid)
+        query2 = delete(Create).where(Create.columns.designid == designid)
         connection.execute(query2)
 
-        return {'message': 'Design has been deleted.'}
+        query3 = delete(Room).where(Room.columns.designid == designid)
+        connection.execute(query3)
+
+        return {'message': 'Room has been deleted.'}
 
 
 """ DIY APIS"""
 @app.route('/diy', methods=['GET', 'POST'])
-def get_diy():
+def get_diys():
     if request.method == 'GET':
         diys = select([Diy, Design]).where(Diy.columns.designid == Design.columns.designid)
         query = connection.execute(diys)
@@ -136,23 +140,56 @@ def get_diy():
         return jsonify({'result': [dict(row) for row in result]})
 
     if request.method == 'POST':
-        data = request.get_json()
-        design_id = int(uuid.uuid4())
+        data = request.get_json()  # needs to include the uid
+        design_id = random.randrange(300001, 500000)
 
         # create design id and add to Design relation
         query1 = insert(Design).values(designid=design_id, style=data['style'], caption=data['caption'],
                                        dateposted=data['dateposted'])
         connection.execute(query1)
 
-        # create new room, add to Room and give design ID
-        query2 = insert(Diy).values(designid=design_id, score=data['score'], timetakes=data['timetakes'], link=data['link'], materials=data['materials'], title=data['title'], instructions=data['instructions'])
+        query2 = insert(Create).values(uid=data['uid'], designid=design_id)
         connection.execute(query2)
+
+        # create new room, add to Room and give design ID
+        query3 = insert(Diy).values(designid=design_id, score=data['score'], timetakes=data['timetakes'], link=data['link'], materials=data['materials'], title=data['title'], instructions=data['instructions'])
+        connection.execute(query3)
         return {'message': 'New DIY has been added.'}
 
 
 @app.route('/diy/designid', methods=['GET', 'PUT', 'DELETE'])
-def get_single_diy():
-    pass
+def get_single_diy(designid):
+    if request.method == 'GET':
+        diy = select([Diy, Design]).where(
+            and_(Diy.columns.designid == Design.columns.designid, Diy.columns.designid == designid))
+        query = connection.execute(diy)
+        result = query.fetchone()
+        return jsonify({'result': dict(result)})
+
+    if request.method == 'PUT':
+        data = request.get_json()
+
+        # update Design relation with new info
+        query1 = update(Design).values(style=data['style'], caption=data['caption'],
+                                       dateposted=data['dateposted']).where(Design.columns.designid == designid)
+        connection.execute(query1)
+
+        # update Diy relation with new info
+        query2 = update(Diy).values(occupancy=data['occupancy'], building=data['building']).where(
+            Diy.columns.designid == designid)
+        connection.execute(query2)
+
+    if request.method == 'DELETE':
+        query1 = delete(Design).where(Design.columns.designid == designid)
+        connection.execute(query1)
+
+        query2 = delete(Create).where(Create.columns.designid == designid)  # is designid unique?
+        connection.execute(query2)
+
+        query3 = delete(Diy).where(Diy.columns.designid == designid)
+        connection.execute(query3)
+
+        return {'message': 'Diy has been deleted.'}
 
 
 """ FAVORITES APIS"""
