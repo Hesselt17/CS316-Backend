@@ -41,7 +41,7 @@ def get_users():
         data = request.get_json()
         unique_id = random.randrange(20000, 100000)  # made this an int (default is class uuid.UUID)
         new_user = insert(UserInfo).values(uid=unique_id, name=data['name'], password=data['password'], email=data['email'],
-                                           bio=data['bio'], score=data['score'], wherelive=data['wherelive'])
+                                           bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar'])
         connection.execute(new_user)
         return {'message': 'A profile for {} was created with this email: {}'.format(data['name'], data['email'])}
 
@@ -59,7 +59,7 @@ def get_single_user(uid):
     # updates any fields of user info
     if request.method == 'PUT':
         data = request.get_json()
-        query = update(UserInfo).values(name=data['name'], password=data['password'], email=data['email'], bio=data['bio'], score=data['score'], wherelive=data['wherelive']).where(UserInfo.columns.uid == uid)
+        query = update(UserInfo).values(name=data['name'], password=data['password'], email=data['email'], bio=data['bio'], score=data['score'], wherelive=data['wherelive']).where(UserInfo.columns.uid == uid, avatar=data['avatar'])
         connection.execute(query)
         return {'message': 'User information has been updated.'}
 
