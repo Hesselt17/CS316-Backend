@@ -63,11 +63,61 @@ def get_single_user(uid):
         connection.execute(query)
         return {'message': 'User information has been updated.'}
 
-    # deletes user from UserInfo
+    # deletes user from UserInfo and all designs, reviews and favorites associated with them.
     if request.method == 'DELETE':
+        # store designid to use when deleting from creates, diys, rooms
+        designid = select([Create.columns.designid]).where(Create.columns.uid == uid)
+        query = connection.execute(designid)
+        result = query.fetchone()
+
+        # delete user's reviews
+        query1 = delete(Reviews).where(Reviews.columns.uid == uid)
+        connection.execute(query1)
+
+        # delete user's favorites
+        query2 = delete(Favorites).where(Favorites.columns.uid == uid)
+        connection.execute(query2)
+
+        # delete user's diys
+        query3 = delete(Diy).where(Diy.columns.designid == result)
+        connection.execute(query3)
+
+        # delete user's rooms
+        query4 = delete(Room).where(Room.columns.designid == result)
+        connection.execute(query4)
+
+        # delete user's designs
+        query5 = delete(Design).where(Design.columns.designid == result)
+        connection.execute(query5)
+
+        # delete user from creates
+        query6 = delete(Create).where(Create.columns.uid == uid)
+        connection.execute(query6)
+
+        # delete user from UserInfo
         query = delete(UserInfo).where(UserInfo.columns.uid == uid)
         connection.execute(query)
+
         return {'message': 'User has been deleted.'}
+
+
+""" DESIGN APIS"""
+@app.route('/designs', methods=['GET'])
+def get_designs():
+    designs = select([Design])
+    query = connection.execute(designs)
+    result = query.fetchall()
+    return jsonify({'result': [dict(row) for row in result]})
+
+
+@app.route('/designs/<int:uid>', methods=['GET'])
+def get_users_designs(uid):
+    # returns all designIDs + attributes in Design relation associated with a user
+    designs = select([Design]).where(Design.columns.uid == uid)
+    query = connection.execute(designs)
+    result = query.fetchall()
+
+    return jsonify({'result': [dict(row) for row in result]})
 
 
 """ ROOM APIS"""
@@ -97,7 +147,7 @@ def get_rooms():
         return {'message': 'New room has been added.'}
 
 
-@app.route('/rooms/designid', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/rooms/<int:designid>', methods=['GET', 'PUT', 'DELETE'])
 def get_single_room(designid):
 
     if request.method == 'GET':
@@ -118,13 +168,13 @@ def get_single_room(designid):
         connection.execute(query2)
 
     if request.method == 'DELETE':
-        query1 = delete(Design).where(Design.columns.designid == designid)
+        query1 = delete(Room).where(Room.columns.designid == designid)
         connection.execute(query1)
 
         query2 = delete(Create).where(Create.columns.designid == designid)
         connection.execute(query2)
 
-        query3 = delete(Room).where(Room.columns.designid == designid)
+        query3 = delete(Design).where(Design.columns.designid == designid)
         connection.execute(query3)
 
         return {'message': 'Room has been deleted.'}
@@ -157,7 +207,7 @@ def get_diys():
         return {'message': 'New DIY has been added.'}
 
 
-@app.route('/diy/designid', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/diy/<int:designid>', methods=['GET', 'PUT', 'DELETE'])
 def get_single_diy(designid):
     if request.method == 'GET':
         diy = select([Diy, Design]).where(
@@ -180,27 +230,52 @@ def get_single_diy(designid):
         connection.execute(query2)
 
     if request.method == 'DELETE':
-        query1 = delete(Design).where(Design.columns.designid == designid)
+        query1 = delete(Diy).where(Diy.columns.designid == designid)
         connection.execute(query1)
 
-        query2 = delete(Create).where(Create.columns.designid == designid)  # is designid unique?
+        query2 = delete(Create).where(Create.columns.designid == designid)
         connection.execute(query2)
 
-        query3 = delete(Diy).where(Diy.columns.designid == designid)
+        query3 = delete(Design).where(Design.columns.designid == designid)
         connection.execute(query3)
 
         return {'message': 'Diy has been deleted.'}
 
 
 """ FAVORITES APIS"""
-@app.route('/favorites', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/favorites', methods=['GET', 'POST', 'DELETE'])
 def get_favorites():
-    pass
+    # returns all uid, designid
+    if request.method == 'GET':
+        favorites = select([Favorites])
+        query = connection.execute(favorites)
+        result = query.fetchall()
+        return jsonify({'result': [dict(row) for row in result]})
+
+    # adds new favorite
+    if request.method == 'POST':
+        data = request.get_json()
+        new_favorite = insert(Favorites).values(uid=data['uid'], designid=data['designid'])
+        connection.execute(new_favorite)
+        return jsonify({'message': 'New favorite has been added.'})
 
 
-@app.route('/favorites/userid', methods=['GET', 'PUT', 'DELETE'])
-def get_single_favorite():
-    pass
+# given a userid, returns all designs that a user has favorited
+@app.route('/favorites/<int:uid>', methods=['GET'])
+def get_user_favorites(uid):
+    favorites = select([Favorites.columns.designid]).where(Favorites.columns.uid == uid)
+    query = connection.execute(favorites)
+    result = query.fetchall()
+    return jsonify({'result': [dict(row) for row in result]})
+
+
+# given a designid, returns all users who have favorited it
+@app.route('/favorites/<int:designid>', methods=['GET'])
+def get_design_favorites(designid):
+    favorites = select([Favorites.columns.uid]).where(Favorites.columns.designid == designid)
+    query = connection.execute(favorites)
+    result = query.fetchall()
+    return jsonify({'result': [dict(row) for row in result]})
 
 
 """ REVIEWS APIS"""
@@ -213,7 +288,7 @@ def get_reviews():
         return jsonify({'result': [dict(row) for row in result]})
 
 
-@app.route('/reviews/designid', methods=['GET', 'PUT', 'DELETE'])
+@app.route('/reviews/<int:designid>', methods=['GET', 'PUT', 'DELETE'])
 def get_single_review():
     pass
 
