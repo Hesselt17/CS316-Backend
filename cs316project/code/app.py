@@ -39,7 +39,7 @@ def get_users():
     # adds new user to UserInfo. Assign userid to user
     if request.method == 'POST':
         data = request.get_json()
-        unique_id = random.randrange(20000, 100000)  # made this an int (default is class uuid.UUID)
+        unique_id = random.randrange(20000, 100000)
         new_user = insert(UserInfo).values(uid=unique_id, name=data['name'], password=data['password'], email=data['email'],
                                            bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar'])
         connection.execute(new_user)
@@ -54,12 +54,15 @@ def get_single_user(uid):
             UserInfo.columns.uid == uid)
         query = connection.execute(user)
         result = query.fetchone()
-        return jsonify({'result': dict(result)})
+        if result:
+            return jsonify({'result': dict(result)})
+        else:
+            return jsonify({'message': "User does not exist."})
 
     # updates any fields of user info
     if request.method == 'PUT':
         data = request.get_json()
-        query = update(UserInfo).values(name=data['name'], password=data['password'], email=data['email'], bio=data['bio'], score=data['score'], wherelive=data['wherelive']).where(UserInfo.columns.uid == uid, avatar=data['avatar'])
+        query = update(UserInfo).values(name=data['name'], password=data['password'], email=data['email'], bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar']).where(UserInfo.columns.uid == uid)
         connection.execute(query)
         return {'message': 'User information has been updated.'}
 
@@ -109,11 +112,11 @@ def get_designs():
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
 
-
+# uid isn't an attribute in designs, will need to rethink this
 @app.route('/designs/<int:uid>', methods=['GET'])
 def get_users_designs(uid):
     # returns all designIDs + attributes in Design relation associated with a user
-    designs = select([Design]).where(Design.columns.uid == uid)
+    designs = select([Create.columns.designid]).where(Create.columns.uid == uid)
     query = connection.execute(designs)
     result = query.fetchall()
 
@@ -125,7 +128,7 @@ def get_users_designs(uid):
 def get_rooms():
 
     if request.method == 'GET':
-        rooms = select([Room, Design]).where(Room.columns.designid == Design.columns.designid)
+        rooms = select([Room.columns.building, Design.columns.designid, Room.columns.occupancy, Design.columns.caption, Design.columns.style, Design.columns.photo, Design.columns.dateposted]).where(Room.columns.designid == Design.columns.designid)
         query = connection.execute(rooms)
         result = query.fetchall()
         return jsonify({'result': [dict(row) for row in result]})
@@ -135,7 +138,7 @@ def get_rooms():
         design_id = random.randrange(100001, 300000)
 
         # create design id and add to Design relation
-        query1 = insert(Design).values(designid=design_id, style=data['style'], caption=data['caption'], dateposted=data['dateposted'])
+        query1 = insert(Design).values(designid=design_id, style=data['style'], caption=data['caption'], dateposted=data['dateposted'], photo=data['photo'])
         connection.execute(query1)
 
         query2 = insert(Create).values(designid=design_id, uid=data['uid'])
@@ -151,21 +154,26 @@ def get_rooms():
 def get_single_room(designid):
 
     if request.method == 'GET':
-        room = select([Room, Design]).where(and_(Room.columns.designid == Design.columns.designid, Room.columns.designid == designid))
+        room = select([Room.columns.building, Design.columns.designid, Room.columns.occupancy, Design.columns.style, Design.columns.caption, Design.columns.photo, Design.columns.dateposted]).where(and_(Room.columns.designid == Design.columns.designid, Room.columns.designid == designid))
         query = connection.execute(room)
         result = query.fetchone()
-        return jsonify({'result': dict(result)})
+        if result:
+            return jsonify({'result': dict(result)})
+        else:
+            return jsonify({'message': "Room does not exist."})
 
     if request.method == 'PUT':
         data = request.get_json()
 
         # update Design relation with new info
-        query1 = update(Design).values(style=data['style'], caption=data['caption'], dateposted=data['dateposted']).where(Design.columns.designid == designid)
+        query1 = update(Design).values(style=data['style'], caption=data['caption'], dateposted=data['dateposted'], photo=data['photo']).where(Design.columns.designid == designid)
         connection.execute(query1)
 
         # update Room relation with new info
         query2 = update(Room).values(occupancy=data['occupancy'], building=data['building']).where(Room.columns.designid == designid)
         connection.execute(query2)
+
+        return jsonify({'message': "Room has been updated."})
 
     if request.method == 'DELETE':
         query1 = delete(Room).where(Room.columns.designid == designid)
@@ -174,8 +182,14 @@ def get_single_room(designid):
         query2 = delete(Create).where(Create.columns.designid == designid)
         connection.execute(query2)
 
-        query3 = delete(Design).where(Design.columns.designid == designid)
+        query3 = delete(Favorites).where(Favorites.columns.designid == designid)
         connection.execute(query3)
+
+        query4 = delete(Reviews).where(Reviews.columns.designid == designid)
+        connection.execute(query4)
+
+        query5 = delete(Design).where(Design.columns.designid == designid)
+        connection.execute(query5)
 
         return {'message': 'Room has been deleted.'}
 
@@ -184,7 +198,7 @@ def get_single_room(designid):
 @app.route('/diy', methods=['GET', 'POST'])
 def get_diys():
     if request.method == 'GET':
-        diys = select([Diy, Design]).where(Diy.columns.designid == Design.columns.designid)
+        diys = select([Diy.columns.score, Diy.columns.designid, Diy.columns.timetakes, Diy.columns.link, Diy.columns.materials, Diy.columns.title, Diy.columns.instructions, Design.columns.style, Design.columns.caption, Design.columns.dateposted]).where(Diy.columns.designid == Design.columns.designid)
         query = connection.execute(diys)
         result = query.fetchall()
         return jsonify({'result': [dict(row) for row in result]})
@@ -195,7 +209,7 @@ def get_diys():
 
         # create design id and add to Design relation
         query1 = insert(Design).values(designid=design_id, style=data['style'], caption=data['caption'],
-                                       dateposted=data['dateposted'])
+                                       dateposted=data['dateposted'], photo=data['photo'])
         connection.execute(query1)
 
         query2 = insert(Create).values(uid=data['uid'], designid=design_id)
@@ -210,34 +224,59 @@ def get_diys():
 @app.route('/diy/<int:designid>', methods=['GET', 'PUT', 'DELETE'])
 def get_single_diy(designid):
     if request.method == 'GET':
-        diy = select([Diy, Design]).where(
+        diy = select([Diy.columns.score, Diy.columns.timetakes, Diy.columns.link, Diy.columns.materials, Diy.columns.title, Diy.columns.instructions, Design.columns.style, Design.columns.caption, Design.columns.dateposted, Design.columns.photo]).where(
             and_(Diy.columns.designid == Design.columns.designid, Diy.columns.designid == designid))
         query = connection.execute(diy)
         result = query.fetchone()
-        return jsonify({'result': dict(result)})
+        if result:
+            return jsonify({'result': dict(result)})
+        else:
+            return jsonify({'message': "Diy does not exist."})
 
     if request.method == 'PUT':
         data = request.get_json()
 
         # update Design relation with new info
         query1 = update(Design).values(style=data['style'], caption=data['caption'],
-                                       dateposted=data['dateposted']).where(Design.columns.designid == designid)
+                                       dateposted=data['dateposted'], photo=data['photo']).where(Design.columns.designid == designid)
         connection.execute(query1)
 
         # update Diy relation with new info
-        query2 = update(Diy).values(occupancy=data['occupancy'], building=data['building']).where(
+        query2 = update(Diy).values(score=data['score'], timetakes=data['timetakes'], link=data['link'], materials=data['materials'], title=data['title'], instructions=data['instructions']).where(
             Diy.columns.designid == designid)
         connection.execute(query2)
+        return jsonify({'message': 'Diy updated.'})
 
     if request.method == 'DELETE':
+        """query1 = delete(Diy).where(Diy.columns.designid == designid)
+        connection.execute(query1)
+
+        query2 = delete(Create).where(Create.columns.designid == designid)
+        connection.execute(query2)
+
+        query3 = delete(Reviews).where(Reviews.columns.designid == designid)
+        connection.execute(query3)
+
+        query4 = delete(Favorites).where(Favorites.columns.designid == designid)
+        connection.execute(query4)
+
+        query5 = delete(Design).where(Design.columns.designid == designid)
+        connection.execute(query5)"""
+
         query1 = delete(Diy).where(Diy.columns.designid == designid)
         connection.execute(query1)
 
         query2 = delete(Create).where(Create.columns.designid == designid)
         connection.execute(query2)
 
-        query3 = delete(Design).where(Design.columns.designid == designid)
+        query3 = delete(Favorites).where(Favorites.columns.designid == designid)
         connection.execute(query3)
+
+        query4 = delete(Reviews).where(Reviews.columns.designid == designid)
+        connection.execute(query4)
+
+        query5 = delete(Design).where(Design.columns.designid == designid)
+        connection.execute(query5)
 
         return {'message': 'Diy has been deleted.'}
 
@@ -252,16 +291,24 @@ def get_favorites():
         result = query.fetchall()
         return jsonify({'result': [dict(row) for row in result]})
 
-    # adds new favorite
+    # adds new favorite (don't let people favorite more than once)
     if request.method == 'POST':
         data = request.get_json()
-        new_favorite = insert(Favorites).values(uid=data['uid'], designid=data['designid'])
-        connection.execute(new_favorite)
-        return jsonify({'message': 'New favorite has been added.'})
+        check_favorite = select([Favorites]).where(and_(Favorites.columns.uid == data['uid'], Favorites.columns.designid == data['designid']))
+        check_result = connection.execute(check_favorite) # do i need this?
+
+        # check that user has not already liked this design
+        if check_result.first() is not None:
+            return jsonify({'message': "User {} has already liked design {}".format(data['uid'], data['designid'])})
+
+        else:
+            new_favorite = insert(Favorites).values(uid=data['uid'], designid=data['designid'])
+            connection.execute(new_favorite)
+            return jsonify({'message': 'New favorite has been added.'})
 
 
 # given a userid, returns all designs that a user has favorited
-@app.route('/favorites/<int:uid>', methods=['GET'])
+@app.route('/favorites/users/<int:uid>', methods=['GET'])
 def get_user_favorites(uid):
     favorites = select([Favorites.columns.designid]).where(Favorites.columns.uid == uid)
     query = connection.execute(favorites)
@@ -270,7 +317,7 @@ def get_user_favorites(uid):
 
 
 # given a designid, returns all users who have favorited it
-@app.route('/favorites/<int:designid>', methods=['GET'])
+@app.route('/favorites/designs/<int:designid>', methods=['GET'])
 def get_design_favorites(designid):
     favorites = select([Favorites.columns.uid]).where(Favorites.columns.designid == designid)
     query = connection.execute(favorites)
@@ -279,7 +326,7 @@ def get_design_favorites(designid):
 
 
 """ REVIEWS APIS"""
-@app.route('/reviews', methods=['GET'])
+@app.route('/reviews', methods=['GET', 'POST'])
 def get_reviews():
     if request.method == 'GET':
         reviews = select([Reviews])  # do we ever need the entire list of reviews?
@@ -287,9 +334,25 @@ def get_reviews():
         result = query.fetchall()
         return jsonify({'result': [dict(row) for row in result]})
 
+    if request.method == 'POST':  # need to give the uid
+        data = request.get_json()
+        new_review = insert(Reviews).values(uid=data['uid'], designid=data['designid'], comment=data['comment'], rating=data['rating'])
+        connection.execute(new_review)
+        return jsonify({'message': 'New review has been added.'})
 
-@app.route('/reviews/<int:designid>', methods=['GET', 'PUT', 'DELETE'])
-def get_single_review():
+
+@app.route('/reviews/<int:designid>', methods=['GET'])
+def get_single_review(designid):
+
+    if request.method == 'GET':
+        reviews = select([Reviews]).where(Reviews.columns.designid == designid)
+        query = connection.execute(reviews)
+        result = query.fetchall()
+        return jsonify({'result': [dict(row) for row in result]})
+
+
+@app.route('/reviews/delete', methods=['DELETE'])
+def delete_review():
     pass
 
 
