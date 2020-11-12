@@ -102,7 +102,7 @@ def get_single_user(uid):
 """ DESIGN APIS"""
 @app.route('/designs', methods=['GET'])
 def get_designs():
-    designs = select([CreateDesign.columns.uid, CreateDesign.columns.designid, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.caption, CreateDesign.columns.style])  # currently not returning photo because byte not JSON serializable
+    designs = select([CreateDesign.columns.uid, CreateDesign.columns.designid, CreateDesign.columns.photo, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.caption, CreateDesign.columns.style])  # currently not returning photo because byte not JSON serializable
     query = connection.execute(designs)
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
