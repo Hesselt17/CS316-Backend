@@ -40,7 +40,7 @@ def get_users():
         data = request.get_json()
         unique_id = random.randrange(20000, 100000)
         new_user = insert(UserInfo).values(uid=unique_id, name=data['name'], password=data['password'], email=data['email'],
-                                           bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar'])
+                                           bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar'], netid=data["netid"])
         connection.execute(new_user)
         return {'message': 'A profile for {} was created with this email: {}'.format(data['name'], data['email'])}
 
@@ -61,14 +61,14 @@ def get_single_user(uid):
     # updates any fields of user info
     if request.method == 'PUT':
         data = request.get_json()
-        query = update(UserInfo).values(name=data['name'], password=data['password'], email=data['email'], bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar']).where(UserInfo.columns.uid == uid)
+        query = update(UserInfo).values(name=data['name'], password=data['password'], email=data['email'], bio=data['bio'], score=data['score'], wherelive=data['wherelive'], avatar=data['avatar'], netid=data['netid']).where(UserInfo.columns.uid == uid)
         connection.execute(query)
         return {'message': 'User information has been updated.'}
 
     # deletes user from UserInfo and all designs, reviews and favorites associated with them.
     if request.method == 'DELETE':
         # store designid to use when deleting from creates, diys, rooms
-        designid = select([Create.columns.designid]).where(Create.columns.uid == uid)
+        designid = select([CreateDesign.columns.designid]).where(CreateDesign.columns.uid == uid)
         query = connection.execute(designid)
         result = query.fetchone()
 
@@ -88,17 +88,13 @@ def get_single_user(uid):
         query4 = delete(Room).where(Room.columns.designid == result)
         connection.execute(query4)
 
-        # delete user's designs
-        query5 = delete(Design).where(Design.columns.designid == result)
+        # delete user from creates
+        query5 = delete(CreateDesign).where(CreateDesign.columns.uid == uid)
         connection.execute(query5)
 
-        # delete user from creates
-        query6 = delete(Create).where(Create.columns.uid == uid)
-        connection.execute(query6)
-
         # delete user from UserInfo
-        query = delete(UserInfo).where(UserInfo.columns.uid == uid)
-        connection.execute(query)
+        query6 = delete(UserInfo).where(UserInfo.columns.uid == uid)
+        connection.execute(query6)
 
         return {'message': 'User has been deleted.'}
 
