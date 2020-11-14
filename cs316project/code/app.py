@@ -100,7 +100,7 @@ def get_single_user(uid):
 
 
 # same as above endpoint, but uses user's email as input instead of uid
-@app.route('/users/<str:email>', methods=['GET', 'PUT'])
+@app.route('/users/<email>', methods=['GET', 'PUT'])
 def get_single_user_email(email):
     # returns user row
     if request.method == 'GET':
