@@ -18,7 +18,7 @@ cors = CORS(app)  # This is what allows for this backend to enable CORS (webbrow
 UserInfo = Table('userinfo', metadata, autoload=True, autoload_with=engine)
 Room = Table('room', metadata, autoload=True, autoload_with=engine)
 Diy = Table('diy', metadata, autoload=True, autoload_with=engine)
-Favorites = Table('favorites', metadata, autoload=True, autoload_with=engine)
+Likes = Table('favorites', metadata, autoload=True, autoload_with=engine)
 Reviews = Table('reviews', metadata, autoload=True, autoload_with=engine)
 CreateDesign = Table('createdesign', metadata, autoload=True, autoload_with=engine)
 
@@ -75,7 +75,7 @@ def get_single_user(uid):
         connection.execute(query1)
 
         # delete user's favorites
-        query2 = delete(Favorites).where(Favorites.columns.uid == uid)
+        query2 = delete(Likes).where(Likes.columns.uid == uid)
         connection.execute(query2)
 
         # delete user's diys and rooms
@@ -99,11 +99,35 @@ def get_single_user(uid):
         return {'message': 'User has been deleted.'}
 
 
+# same as above endpoint, but uses user's email as input instead of uid
+@app.route('/users/<str:email>', methods=['GET', 'PUT'])
+def get_single_user_email(email):
+    # returns user row
+    if request.method == 'GET':
+        user = select([UserInfo]).where(
+            UserInfo.columns.email == email)
+        query = connection.execute(user)
+        result = query.fetchone()
+        if result:
+            return jsonify({'result': dict(result)})
+        else:
+            return jsonify({'message': "User does not exist."})
+
+    # updates any fields of user info
+    if request.method == 'PUT':
+        data = request.get_json()
+        query = update(UserInfo).values(name=data['name'], password=data['password'], uid=data['uid'],
+                                        bio=data['bio'], score=data['score'], wherelive=data['wherelive'],
+                                        avatar=data['avatar'], netid=data['netid']).where(UserInfo.columns.email == email)
+        connection.execute(query)
+        return {'message': 'User information has been updated.'}
+
+
 """ DESIGN APIS"""
 @app.route('/designs', methods=['GET'])
 def get_designs():
     # returns all attributes from createdesign table
-    designs = select([CreateDesign.columns.uid, CreateDesign.columns.designid, CreateDesign.columns.photo, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.caption, CreateDesign.columns.style])  # currently not returning photo because byte not JSON serializable
+    designs = select([CreateDesign.columns.uid, CreateDesign.columns.name, CreateDesign.columns.designid, CreateDesign.columns.photo, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.caption, CreateDesign.columns.style])  # currently not returning photo because byte not JSON serializable
     query = connection.execute(designs)
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
@@ -177,7 +201,7 @@ def get_single_room(designid):
         query1 = delete(Room).where(Room.columns.designid == designid)
         connection.execute(query1)
 
-        query2 = delete(Favorites).where(Favorites.columns.designid == designid)
+        query2 = delete(Likes).where(Likes.columns.designid == designid)
         connection.execute(query2)
 
         query3 = delete(Reviews).where(Reviews.columns.designid == designid)
@@ -234,11 +258,11 @@ def get_single_diy(designid):
 
         # update Design relation with new info
         query1 = update(CreateDesign).values(style=data['style'], caption=data['caption'],
-                                       dateposted=data['dateposted'], photo=data['photo']).where(CreateDesign.columns.designid == designid)
+                                       dateposted=data['dateposted'], photo=data['photo'], typedesign=data['diycheck']).where(CreateDesign.columns.designid == designid)
         connection.execute(query1)
 
         # update Diy relation with new info
-        query2 = update(Diy).values(score=data['score'], timetakes=data['timetakes'], link=data['link'], materials=data['materials'], title=data['title'], instructions=data['instructions']).where(
+        query2 = update(Diy).values(score=data['score'], timetakes=data['timetakes'], link=data['link'], diycheck=data['diycheck'], materials=data['materials'], title=data['title'], instructions=data['instructions']).where(
             Diy.columns.designid == designid)
         connection.execute(query2)
         return jsonify({'message': 'Diy updated.'})
@@ -249,7 +273,7 @@ def get_single_diy(designid):
         query1 = delete(Diy).where(Diy.columns.designid == designid)
         connection.execute(query1)
 
-        query2 = delete(Favorites).where(Favorites.columns.designid == designid)
+        query2 = delete(Likes).where(Likes.columns.designid == designid)
         connection.execute(query2)
 
         query3 = delete(Reviews).where(Reviews.columns.designid == designid)
@@ -261,55 +285,55 @@ def get_single_diy(designid):
         return {'message': 'Diy has been deleted.'}
 
 
-""" FAVORITES APIS"""
-@app.route('/favorites', methods=['GET', 'POST'])
+""" LIKES APIS"""
+@app.route('/likes', methods=['GET', 'POST'])
 def get_favorites():
     # returns all uid, designid
     if request.method == 'GET':
-        favorites = select([Favorites])
-        query = connection.execute(favorites)
+        likes = select([Likes])
+        query = connection.execute(likes)
         result = query.fetchall()
         return jsonify({'result': [dict(row) for row in result]})
 
-    # adds new favorite (enforces one like per user per design)
+    # adds new like (enforces one like per user per design)
     if request.method == 'POST':
         data = request.get_json()
-        check_favorite = select([Favorites]).where(and_(Favorites.columns.uid == data['uid'], Favorites.columns.designid == data['designid']))
-        check_result = connection.execute(check_favorite)
+        check_like = select([Likes]).where(and_(Likes.columns.uid == data['uid'], Likes.columns.designid == data['designid']))
+        check_result = connection.execute(check_like)
 
         # check that user has not already liked this design
         if check_result.first() is not None:
             return jsonify({'message': "User {} has already liked design {}".format(data['uid'], data['designid'])})
 
         else:
-            new_favorite = insert(Favorites).values(uid=data['uid'], designid=data['designid'])
-            connection.execute(new_favorite)
-            return jsonify({'message': 'New favorite has been added.'})
+            new_like = insert(Likes).values(uid=data['uid'], designid=data['designid'])
+            connection.execute(new_like)
+            return jsonify({'message': 'New like has been added.'})
 
 
-# given a userid, returns all designs that a user has favorited
-@app.route('/favorites/users/<int:uid>', methods=['GET'])
-def get_user_favorites(uid):
-    favorites = select([Favorites.columns.designid]).where(Favorites.columns.uid == uid)
-    query = connection.execute(favorites)
+# given a userid, returns all designs that a user has liked
+@app.route('/likes/users/<int:uid>', methods=['GET'])
+def get_user_likes(uid):
+    likes = select([Likes.columns.designid]).where(Likes.columns.uid == uid)
+    query = connection.execute(likes)
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
 
 
-# given a designid, returns all users who have favorited it
-@app.route('/favorites/designs/<int:designid>', methods=['GET'])
-def get_design_favorites(designid):
-    favorites = select([Favorites.columns.uid]).where(Favorites.columns.designid == designid)
-    query = connection.execute(favorites)
+# given a designid, returns all users who have liked it
+@app.route('/likes/designs/<int:designid>', methods=['GET'])
+def get_design_likes(designid):
+    likes = select([Likes.columns.uid]).where(Likes.columns.designid == designid)
+    query = connection.execute(likes)
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
 
 
-# given designid and uid, deletes favorite
-@app.route('/favorites/<int:designid>/<int:uid>', methods=['DELETE'])
-def delete_favorite(designid, uid):
-    delete_fav = delete(Favorites).where(and_(Favorites.columns.designid == designid, Favorites.columns.uid == uid))
-    connection.execute(delete_fav)
+# given designid and uid, deletes like
+@app.route('/likes/<int:designid>/<int:uid>', methods=['DELETE'])
+def delete_like(designid, uid):
+    delete_likes = delete(Likes).where(and_(Likes.columns.designid == designid, Likes.columns.uid == uid))
+    connection.execute(delete_likes)
 
     return jsonify({'message': "User {} has unliked design {}".format(uid, designid)})
 
