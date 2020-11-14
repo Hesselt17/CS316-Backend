@@ -127,7 +127,7 @@ def get_single_user_email(email):
 @app.route('/designs', methods=['GET'])
 def get_designs():
     # returns all attributes from createdesign table
-    designs = select([CreateDesign.columns.uid, CreateDesign.columns.name, CreateDesign.columns.designid, CreateDesign.columns.photo, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.caption, CreateDesign.columns.style])  # currently not returning photo because byte not JSON serializable
+    designs = select([CreateDesign.columns.uid, CreateDesign.columns.designid, CreateDesign.columns.photo, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.caption, CreateDesign.columns.style])  # currently not returning photo because byte not JSON serializable
     query = connection.execute(designs)
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
@@ -314,7 +314,7 @@ def get_favorites():
 # given a userid, returns all designs that a user has liked
 @app.route('/likes/users/<int:uid>', methods=['GET'])
 def get_user_likes(uid):
-    likes = select([Likes.columns.designid]).where(Likes.columns.uid == uid)
+    likes = select([Likes.columns.designid, CreateDesign.columns.uid, CreateDesign.columns.typedesign, CreateDesign.columns.dateposted, CreateDesign.columns.style, CreateDesign.columns.caption, CreateDesign.columns.photo]).where(and_(Likes.columns.uid == uid, Likes.columns.uid == CreateDesign.columns.uid))
     query = connection.execute(likes)
     result = query.fetchall()
     return jsonify({'result': [dict(row) for row in result]})
