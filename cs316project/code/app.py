@@ -143,6 +143,18 @@ def get_users_designs(uid):
     return jsonify({'result': [dict(row) for row in result]})
 
 
+"""EXPLORE PAGE API"""
+@app.route('/explore', methods=['GET'])
+# this method returns a number of randomly selected designs
+def get_explore_page():
+    offset = random.randint(2, 20)
+    random_designs = select([CreateDesign, UserInfo.columns.name]).select_from(CreateDesign.join(UserInfo)).limit(20).offset(offset)
+    query = connection.execute(random_designs)
+    result = query.fetchall()
+
+    return jsonify({'result': [dict(row) for row in result]})
+
+
 """ ROOM APIS"""
 @app.route('/rooms', methods=['GET', 'POST'])
 def get_rooms():
